@@ -42,7 +42,7 @@ const account2 = {
 };
 
 const accounts = [account1, account2];
-
+const logOutTime = 1000 * 60;
 // Elements
 const labelWelcome = document.querySelector(".welcome");
 const labelDate = document.querySelector(".date");
@@ -95,14 +95,11 @@ function calcDate(newDate) {
   let date = Math.floor(
     (new Date() - new Date(newDate)) / (1000 * 60 * 60 * 24)
   );
-  console.log(date);
   if (date == 0) return "Today";
   if (date == 1) return "Yesterday";
   if (date <= 7) return `${date} days ago`;
   date = new Date(newDate);
-  return `${date.getDate().toString().padStart(2, "0")}/${(date.getMonth() + 1)
-    .toString()
-    .padStart(2, "0")}/${date.getFullYear()}`;
+  return new Intl.DateTimeFormat(currentAccount.locale).format(date);
 }
 const createUsernames = (users) =>
   //prettier-ignore
@@ -114,6 +111,7 @@ const calcDisplayBalance = (acc) => {
   labelBalance.textContent = `${new Intl.NumberFormat(acc.locale, {
     style: "currency",
     currency: acc.currency,
+    maximumFractionDigits: 2,
   }).format(acc.balance)}`;
 };
 
@@ -124,9 +122,6 @@ const calcDisplaySummary = function (acc) {
   const withdrawal = acc.movements
     .filter((curr) => curr < 0)
     .reduce((acc, curr) => acc + curr, 0);
-  // labelSumIn.textContent = income.toFixed(2);
-  // labelSumOut.textContent = Math.abs(withdrawal).toFixed(2);
-  // labelSumInterest.textContent = ((income * acc.interestRate) / 100).toFixed(2);
   labelSumIn.textContent = `${formatCurrency(acc, income)}`;
   labelSumOut.textContent = `${formatCurrency(acc, withdrawal)}`;
   labelSumInterest.textContent = `${formatCurrency(
@@ -162,11 +157,33 @@ const displayWelcomeMessage = function (acc) {
   }
   labelWelcome.textContent = message;
 };
+let clock, timeInterval, timeOut;
+function timer() {
+  let date = new Date(logOutTime);
+  const startTimer = () => {
+    labelTimer.textContent = new Intl.DateTimeFormat(currentAccount.locale, {
+      minute: "2-digit",
+      second: "2-digit",
+    }).format(date);
+    date = new Date(date - 1000);
+  };
+  startTimer();
+  timeInterval = setInterval(startTimer, 1000);
+  timeOut = setTimeout(() => {
+    clearInterval(timeInterval);
+    clearInterval(clock);
+    currentAccount = undefined;
+    containerApp.style.opacity = 0;
+    displayWelcomeMessage(currentAccount);
+    btnLogOut.style.display = "none";
+    document.querySelector(".login").style.display = "flex";
+  }, logOutTime);
+}
+
 const login = function (username, pin) {
   currentAccount = accounts.find(
     (acc) => acc.pin === pin && acc.username === username
   );
-  // gaurd clause
   if (!currentAccount) return;
 
   containerApp.style.opacity = 1;
@@ -176,13 +193,17 @@ const login = function (username, pin) {
   displayWelcomeMessage(currentAccount);
   updateUI(currentAccount);
   updateClock();
-  setInterval(updateClock, 1000);
+  clock = setInterval(updateClock, 1000);
+  timer(currentAccount);
   document.querySelector(".login").style.display = "none";
   btnLogOut.style.display = "inline-block";
 };
 btnLogOut.addEventListener("click", (e) => {
   e.preventDefault();
   currentAccount = undefined;
+  clearInterval(timeInterval);
+  clearTimeout(timeOut);
+  clearInterval(clock);
   containerApp.style.opacity = 0;
   displayWelcomeMessage(currentAccount);
   btnLogOut.style.display = "none";
@@ -236,6 +257,9 @@ btnClose.addEventListener("click", (e) => {
     containerApp.style.opacity = 0;
     currentAccount = undefined;
     displayWelcomeMessage(currentAccount);
+    clearInterval(timeInterval);
+    clearTimeout(timeOut);
+    clearInterval(clock);
   }
 });
 
@@ -248,9 +272,11 @@ btnLoan.addEventListener("click", (e) => {
     !currentAccount.movements.some((mov) => amount * 0.1 < mov)
   )
     return;
-  currentAccount.movements.push(amount);
-  currentAccount.movementsDates.push(new Date().toISOString());
-  updateUI(currentAccount);
+  setTimeout(() => {
+    currentAccount.movements.push(amount);
+    currentAccount.movementsDates.push(new Date().toISOString());
+    updateUI(currentAccount);
+  }, 3333);
 });
 btnSort.addEventListener("click", (e) => {
   e.preventDefault();
@@ -259,7 +285,12 @@ btnSort.addEventListener("click", (e) => {
 });
 function updateClock() {
   const date = new Date();
-  labelDate.textContent = `${new Intl.DateTimeFormat(
-    currentAccount.locale
-  ).format(date)}`;
+  labelDate.textContent = `${new Intl.DateTimeFormat(currentAccount.locale, {
+    hour: "numeric",
+    minute: "numeric",
+    day: "numeric",
+    month: "numeric",
+    year: "numeric",
+    hour12: true,
+  }).format(date)}`;
 }
